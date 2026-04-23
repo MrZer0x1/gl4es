@@ -176,11 +176,9 @@ void initialize_gl4es() {
 #if defined(USE_FBIO) || defined(PYRA)
     env(LIBGL_VSYNC, globals4es.vsync, "vsync enabled");
 #endif
-#ifdef PANDORA
 		if(GetEnvVarFloat("LIBGL_GAMMA",&globals4es.gamma,0.0f)) {
       SHUT_LOGD("Set gamma to %.2f\n", globals4es.gamma);
 		}
-#endif
     env(LIBGL_NOBGRA, globals4es.nobgra, "Ignore BGRA texture capability");
     env(LIBGL_NOTEXRECT, globals4es.notexrect, "Don't export Text Rectangle extension");
     if(globals4es.usefbo) {

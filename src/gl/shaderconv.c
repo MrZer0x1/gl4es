@@ -1292,6 +1292,16 @@ else
     // better to use #define ?
     Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "mat3x3", "mat3");
   }
+
+  // OpenMW / custom-shader gamma hack: apply gamma after the last fragment write
+  if(globals4es.gamma != 0.0f) {
+    char shaderHack[256];
+    sprintf(shaderHack,
+            "applyShadowDebugOverlay();\n"
+            "    gl_FragData[0].xyz = pow(gl_FragData[0].xyz, vec3(1.0/%f));",
+            globals4es.gamma);
+    Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "applyShadowDebugOverlay();", shaderHack);
+  }
   
   // finish
   if((globals4es.dbgshaderconv&maskafter)==maskafter) {

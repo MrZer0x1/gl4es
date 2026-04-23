@@ -5,13 +5,20 @@
 #include "loader.h"
 #include "gl4es.h"
 #include "glstate.h"
+#include "fpe_cache.h"
 
 #ifdef PANDORA
 void pandora_set_gamma();
 #endif
 
 void APIENTRY_GL4ES gl4es_glHint(GLenum pname, GLenum mode) {
-    
+
+    // hack: save precompiled shader archive on demand (OpenMW calls this)
+    if(pname == 41231) {
+        fpe_writePSA();
+        return;
+    }
+
     FLUSH_BEGINEND;
 
     LOAD_GLES(glHint);
