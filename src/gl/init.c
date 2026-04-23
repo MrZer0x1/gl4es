@@ -121,6 +121,26 @@ void initialize_gl4es() {
     env(LIBGL_XREFRESH, globals4es.xrefresh, "xrefresh will be called on cleanup");
     env(LIBGL_STACKTRACE, globals4es.stacktrace, "stacktrace will be printed on crash");
 
+    switch(ReturnEnvVarInt("LIBGL_DXT")) {
+    	case 1:
+        SHUT_LOGD("forcing software DXT decompression\n");
+        globals4es.dxt = 1;
+    	  break;
+    	case 2:
+        SHUT_LOGD("not exposing DXT support\n");
+        globals4es.dxt = 2;
+    	  break;
+    	case 3:
+        SHUT_LOGD("handling DXT as is\n");
+        globals4es.dxt = 3;
+    	  break;
+    	default:
+        SHUT_LOGD("using hardware DXT if supported + software fallback\n");
+        globals4es.dxt = 0;
+    	  break;
+    }
+
+    globals4es.antialias = ReturnEnvVarInt("LIBGL_ANTIALIAS");
 
     switch(ReturnEnvVarInt("LIBGL_FB")) {
     	case 1:
@@ -677,6 +697,7 @@ void initialize_gl4es() {
         if(globals4es.nopsa==0) {
             cwd[0]='\0';
             // TODO: What to do on ANDROID and EMSCRIPTEN?
+/*
             const char* custom_psa = GetEnvVar("LIBGL_PSA_FOLDER");
 #ifdef __linux__
             const char* home = GetEnvVar("HOME");
@@ -693,8 +714,16 @@ void initialize_gl4es() {
             else
               strcpy(cwd, "PROGDIR:");
 #endif
+
+*/
+
+            strcpy(cwd, GetEnvVar("OPENMW_USER_FILE_STORAGE"));
+
             if(strlen(cwd)) {
-                strcat(cwd, ".gl4es.psa");
+                if(globals4es.nohighp)
+                    strcat(cwd, ".gl4es.psa-mediump");
+                else
+                    strcat(cwd, ".gl4es.psa-highp");
                 fpe_InitPSA(cwd);
                 fpe_readPSA();
             }

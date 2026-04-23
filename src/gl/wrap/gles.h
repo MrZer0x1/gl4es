@@ -75,6 +75,8 @@ enum FORMAT {
     FORMAT_void_GLenum_GLfixed___GENPT__,
     FORMAT_GLenum,
     FORMAT_void_GLenum_GLenum_GLenum_GLint___GENPT__,
+    FORMAT_void_GLenum_GLenum_GLenum_GLuint_GLint_GLsizei___GENPT__,
+    FORMAT_void_GLenum_GLsizei_GLenum_GLsizei_GLsizei___GENPT__,
     FORMAT_void_GLenum_GLint___GENPT__,
     FORMAT_void_GLenum_GLenum_GLfloat___GENPT__,
     FORMAT_void_GLenum_GLenum_GLfixed___GENPT__,
@@ -136,6 +138,7 @@ enum FORMAT {
     FORMAT_void_GLuint_GLfloat_GLfloat_GLfloat,
     FORMAT_void_GLuint_GLfloat_GLfloat_GLfloat_GLfloat,
     FORMAT_void_GLuint_GLint_GLenum_GLboolean_GLsizei_const_GLvoid___GENPT__,
+    FORMAT_void_GLenum_GLenum___GENPT__,
 };
 
 typedef void (APIENTRY*FUNC_void_GLenum)(GLenum texture);
@@ -3669,6 +3672,30 @@ packed_call_t* APIENTRY_GL4ES glCopyPackedCall(const packed_call_t *packed);
 #define glVertexAttribIPointer_INDEXED INDEXED_void_GLuint_GLint_GLenum_GLsizei_const_GLvoid___GENPT__
 #define glVertexAttribIPointer_FORMAT FORMAT_void_GLuint_GLint_GLenum_GLsizei_const_GLvoid___GENPT__
 
+#define glClipControlEXT_INDEX 243
+#define glClipControlEXT_RETURN void
+#define glClipControlEXT_ARG_NAMES origin, depthMode
+#define glClipControlEXT_ARG_EXPAND GLenum origin, GLenum depthMode
+#define glClipControlEXT_PACKED PACKED_void_GLenum_GLenum___GENPT__
+#define glClipControlEXT_INDEXED INDEXED_void_GLenum_GLenum___GENPT__
+#define glClipControlEXT_FORMAT FORMAT_void_GLenum_GLenum___GENPT__
+
+#define glRenderbufferStorageMultisampleEXT_INDEX 244
+#define glRenderbufferStorageMultisampleEXT_RETURN void
+#define glRenderbufferStorageMultisampleEXT_ARG_NAMES target, samples, internalformat, width, height
+#define glRenderbufferStorageMultisampleEXT_ARG_EXPAND GLenum target, GLsizei samples, GLenum internalformat, GLsizei width, GLsizei height
+#define glRenderbufferStorageMultisampleEXT_PACKED PACKED_void_GLenum_GLsizei_GLenum_GLsizei_GLsizei___GENPT__
+#define glRenderbufferStorageMultisampleEXT_INDEXED INDEXED_void_GLenum_GLsizei_GLenum_GLsizei_GLsizei___GENPT__
+#define glRenderbufferStorageMultisampleEXT_FORMAT FORMAT_void_GLenum_GLsizei_GLenum_GLsizei_GLsizei___GENPT__
+
+#define glFramebufferTexture2DMultisampleEXT_INDEX 245
+#define glFramebufferTexture2DMultisampleEXT_RETURN void
+#define glFramebufferTexture2DMultisampleEXT_ARG_NAMES target, attachment, textarget, texture, level, samples
+#define glFramebufferTexture2DMultisampleEXT_ARG_EXPAND GLenum target, GLenum attachment, GLenum textarget, GLuint texture, GLint level, GLsizei samples
+#define glFramebufferTexture2DMultisampleEXT_PACKED PACKED_void_GLenum_GLenum_GLenum_GLuint_GLint_GLsizei___GENPT__
+#define glFramebufferTexture2DMultisampleEXT_INDEXED INDEXED_void_GLenum_GLenum_GLenum_GLuint_GLint_GLsizei___GENPT__
+#define glFramebufferTexture2DMultisampleEXT_FORMAT FORMAT_void_GLenum_GLenum_GLenum_GLuint_GLint_GLsizei___GENPT__
+
 void APIENTRY_GL4ES gl4es_glActiveTexture(glActiveTexture_ARG_EXPAND);
 typedef void (APIENTRY_GLES * glActiveTexture_PTR)(glActiveTexture_ARG_EXPAND);
 void APIENTRY_GL4ES gl4es_glAlphaFunc(glAlphaFunc_ARG_EXPAND);
@@ -3779,6 +3806,16 @@ void APIENTRY_GL4ES gl4es_glDrawArrays(glDrawArrays_ARG_EXPAND);
 typedef void (APIENTRY_GLES * glDrawArrays_PTR)(glDrawArrays_ARG_EXPAND);
 void APIENTRY_GL4ES gl4es_glDrawBuffers(glDrawBuffers_ARG_EXPAND);
 typedef void (APIENTRY_GLES * glDrawBuffers_PTR)(glDrawBuffers_ARG_EXPAND);
+
+void APIENTRY_GL4ES gl4es_glClipControlEXT(glClipControlEXT_ARG_EXPAND);
+typedef void (APIENTRY_GLES * glClipControlEXT_PTR)(glClipControlEXT_ARG_EXPAND);
+
+void APIENTRY_GL4ES gl4es_glRenderbufferStorageMultisampleEXT(glRenderbufferStorageMultisampleEXT_ARG_EXPAND);
+typedef void (APIENTRY_GLES * glRenderbufferStorageMultisampleEXT_PTR)(glRenderbufferStorageMultisampleEXT_ARG_EXPAND);
+
+void APIENTRY_GL4ES gl4es_glFramebufferTexture2DMultisampleEXT(glFramebufferTexture2DMultisampleEXT_ARG_EXPAND);
+typedef void (APIENTRY_GLES * glFramebufferTexture2DMultisampleEXT_PTR)(glFramebufferTexture2DMultisampleEXT_ARG_EXPAND);
+
 void APIENTRY_GL4ES gl4es_glDrawElements(glDrawElements_ARG_EXPAND);
 typedef void (APIENTRY_GLES * glDrawElements_PTR)(glDrawElements_ARG_EXPAND);
 void APIENTRY_GL4ES gl4es_glDrawTexf(glDrawTexf_ARG_EXPAND);
@@ -4736,6 +4773,48 @@ typedef void (APIENTRY_GLES * glVertexAttribIPointer_PTR)(glVertexAttribIPointer
     glPushCall((void *)packed_data); \
 }
 #endif
+
+#ifndef direct_glClipControlEXT
+#define push_glClipControlEXT(origin, depthMode) { \
+    glClipControlEXT_PACKED *packed_data = malloc(sizeof(glClipControlEXT_PACKED)); \
+    packed_data->format = glClipControlEXT_FORMAT; \
+    packed_data->func = gl4es_glClipControlEXT; \
+    packed_data->args.a1 = (GLenum)origin; \
+    packed_data->args.a2 = (GLenum)depthMode; \
+    glPushCall((void *)packed_data); \
+}
+#endif
+
+#ifndef direct_glRenderbufferStorageMultisampleEXT
+#define push_glRenderbufferStorageMultisampleEXT(target, samples, internalformat, width, height) { \
+    glRenderbufferStorageMultisampleEXT_PACKED *packed_data = malloc(sizeof(glRenderbufferStorageMultisampleEXT_PACKED)); \
+    packed_data->format = glRenderbufferStorageMultisampleEXT_FORMAT; \
+    packed_data->func = gl4es_glRenderbufferStorageMultisampleEXT; \
+    packed_data->args.a1 = (GLenum)target; \
+    packed_data->args.a2 = (GLsizei)samples; \
+    packed_data->args.a3 = (GLenum)internalformat; \
+    packed_data->args.a4 = (GLuint)texture; \
+    packed_data->args.a5 = (GLsizei)width; \
+    packed_data->args.a6 = (GLsizei)height; \
+    glPushCall((void *)packed_data); \
+}
+#endif
+
+#ifndef direct_glFramebufferTexture2DMultisampleEXT
+#define push_glFramebufferTexture2DMultisampleEXT(target, attachment, textarget, texture, level, samples) { \
+    glFramebufferTexture2DMultisampleEXT_PACKED *packed_data = malloc(sizeof(glFramebufferTexture2DMultisampleEXT_PACKED)); \
+    packed_data->format = glFramebufferTexture2DMultisampleEXT_FORMAT; \
+    packed_data->func = gl4es_glFramebufferTexture2DMultisampleEXT; \
+    packed_data->args.a1 = (GLenum)target; \
+    packed_data->args.a2 = (GLenum)attachment; \
+    packed_data->args.a3 = (GLenum)textarget; \
+    packed_data->args.a4 = (GLuint)texture; \
+    packed_data->args.a5 = (GLint)level; \
+    packed_data->args.a6 = (GLsizei)samples; \
+    glPushCall((void *)packed_data); \
+}
+#endif
+
 #ifndef direct_glDrawElements
 #define push_glDrawElements(mode, count, type, indices) { \
     glDrawElements_PACKED *packed_data = malloc(sizeof(glDrawElements_PACKED)); \

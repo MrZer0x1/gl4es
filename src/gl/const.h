@@ -13,6 +13,7 @@
 #define GL_TEXTURE_ENV_MODE         0x2200
 #define GL_TEXTURE_1D               0x0DE0
 #define GL_TEXTURE_2D               0x0DE1
+#define GL_TEXTURE_2D_MULTISAMPLE   0x9100
 #define GL_TEXTURE_3D               0x806F
 #define GL_TEXTURE_WRAP_S           0x2802
 #define GL_TEXTURE_WRAP_T           0x2803
@@ -931,5 +932,10 @@
 #define GL_FUNC_REVERSE_SUBTRACT                        0x800B
 #define GL_MIN                                          0x8007
 #define GL_MAX                                          0x8008
+
+// GL_IMG_texture_filter_cubic
+#define GL_CUBIC_IMG                                    0x9139
+#define GL_CUBIC_MIPMAP_NEAREST_IMG                     0x913A
+#define GL_CUBIC_MIPMAP_LINEAR_IMG                      0x913B
 
 #endif // _GL4ES_CONST_H_

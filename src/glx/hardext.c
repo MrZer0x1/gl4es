@@ -320,9 +320,20 @@ void GetHardwareExtensions(int notest)
     }
     S("GL_OES_draw_texture ", drawtex, 1);
     S("GL_EXT_texture_rg ", rgtex, 1);
+    S("GL_EXT_clip_control ", clipcontrol, 1);
+    S("GL_EXT_multisampled_render_to_texture ", framebufferTextureMultisample, 1);
+    S("GL_EXT_texture_compression_s3tc ", dxtCompression, 1);
+    S("GL_EXT_texture_compression_dxt1 ", dxt1, 1);
+    S("GL_EXT_texture_compression_dxt3 ", dxt3, 1);
+    S("GL_EXT_texture_compression_dxt5 ", dxt5, 1);
+    S("GL_ANGLE_texture_compression_dxt1 ", dxt1angle, 1);
+    S("GL_ANGLE_texture_compression_dxt3 ", dxt3angle, 1);
+    S("GL_ANGLE_texture_compression_dxt5 ", dxt5angle, 1);
     if(globals4es.floattex) {
         S("GL_OES_texture_float ", floattex, 1);
         S("GL_OES_texture_half_float ", halffloattex, 1);
+        S("GL_OES_texture_float ", floattexlinear, 1);
+        S("GL_OES_texture_half_float ", halffloattexlinear, 1);
         S("GL_EXT_color_buffer_float ", floatfbo, 1);
         S("GL_EXT_color_buffer_half_float ", halffloatfbo, 1);
     }
@@ -331,6 +342,9 @@ void GetHardwareExtensions(int notest)
     S("GL_AOS4_texture_format_RGBA1555REV", rgba1555rev, 1);
     S("GL_AOS4_texture_format_RGBA8888", rgba8888, 1);
     S("GL_AOS4_texture_format_RGBA8888REV", rgba8888rev, 1);
+
+    S("GL_EXT_depth_clamp", depthclamp, 1);
+    S("GL_IMG_texture_filter_cubic", cubicfiltering, 1);
 
     if (hardext.esversion>1) {
         if(!globals4es.nohighp) {
@@ -363,6 +377,9 @@ void GetHardwareExtensions(int notest)
         SHUT_LOGD("Max vertex attrib: %d\n", hardext.maxvattrib);
         S("GL_OES_standard_derivatives ", derivatives, 1);
         S("GL_ARM_shader_framebuffer_fetch", shader_fbfetch, 1);
+        if(!hardext.shader_fbfetch) {
+            S("GL_EXT_shader_framebuffer_fetch ", shader_fbfetch, 1);
+        }
         S("GL_OES_get_program ", prgbinary, 1);
         if(!hardext.prgbinary) {
             S("GL_OES_get_program_binary ", prgbinary, 1);

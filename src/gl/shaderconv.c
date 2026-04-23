@@ -196,9 +196,9 @@ static const char* gl4es_FogParametersSource =
 "struct gl_FogParameters {\n"
 "    lowp vec4 color;\n"
 "    mediump float density;\n"
-"    mediump float start;\n"
-"    mediump float end;\n"
-"    mediump float scale;\n"   // Derived:   1.0 / (end - start) 
+"    highp float start;\n"
+"    highp float end;\n"
+"    highp float scale;\n"   // Derived:   1.0 / (end - start) 
 "};\n"
 "uniform gl_FogParameters gl_Fog;\n";
 static const char* gl4es_FogParametersSourceHighp =
@@ -316,7 +316,7 @@ static const char* HackAltMax =
 "}\n"
 "float max(int a, float b) {\n"
 " return max(float(a), b);\n"
-"}\n";
+"}\n"
 "int max(int a, int b) {\n"
 " return int(max(float(a), float(b)));\n"
 "}\n";
@@ -326,7 +326,7 @@ static const char* HackAltMin =
 "}\n"
 "float min(int a, float b) {\n"
 " return min(float(a), b);\n"
-"}\n";
+"}\n"
 "int min(int a, int b) {\n"
 " return int(min(float(a), float(b)));\n"
 "}\n";
@@ -463,6 +463,9 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
   
   char* pBuffer = (char*)pEntry;
 
+   char extensionsList[512] = {};
+   int extensionsListsize = 2;
+
   int version120 = 0;
   char* versionString = NULL;
   if(!fpeShader) {
@@ -481,6 +484,25 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
       pBuffer = gl4es_inplace_replace(pBuffer, &sz, "\nprecision", "\n//precision");
     }
     // should do something with the extension list...
+
+//if (!isVertex)
+{
+    for(int i = 0; i < exts.size; i++)
+    {
+        char line[80];
+        char* state;
+        if (exts.ext[i].state == 0) state = "disable";
+        if (exts.ext[i].state == 1) state = "warn";
+        if (exts.ext[i].state == 2) state = "enable";
+        if (exts.ext[i].state == 3) state = "require";
+
+        sprintf(line, "#extension %.50s : %s\n", exts.ext[i].name, state);
+        strcat(extensionsList, line);
+    }
+       extensionsListsize = exts.size;
+ //      SHUT_LOGD("complete string\n%.512s \n", extensionsList);
+}
+
     if(exts.ext)
       free(exts.ext);
   }
@@ -513,7 +535,7 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
   }
   #endif
   //sprintf(GLESFullHeader, GLESHeader, (wanthighp && hardext.highp==1 && !isVertex)?GLESUseFragHighp:"", (wanthighp)?"highp":"mediump", (wanthighp)?"highp":"mediump");
-  sprintf(GLESFullHeader, GLESHeader[versionHeader], "", (wanthighp)?"highp":"mediump", (wanthighp)?"highp":"mediump");
+  sprintf(GLESFullHeader, GLESHeader[versionHeader], extensionsList, (wanthighp)?"highp":"mediump", (wanthighp)?"highp":"mediump");
 
   int tmpsize = strlen(pBuffer)*2+strlen(GLESFullHeader)+100;
   char* Tmp = (char*)calloc(1, tmpsize);
@@ -530,9 +552,11 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
     memmove(Tmp, newptr, strlen(newptr)+1);
     Tmp = gl4es_inplace_insert(Tmp, GLESFullHeader, Tmp, &tmpsize);
   }
-  int headline = 3;
+  int headline = 3 + extensionsListsize;
+
+/*
   // move all "#extension in header zone"
-  while (strstr(Tmp, "#extension") && strstr(Tmp, "#extension")>gl4es_getline(Tmp, headline-2)) {
+  while (strstr(Tmp, "#extension") && strstr(Tmp, "#extension")>gl4es_getline(Tmp, headline-1)) {
     char* ext = strstr(Tmp, "#extension");
     size_t l = (uintptr_t)strstr(ext, "\n")-(uintptr_t)ext + sizeof("\n");
 #ifndef _MSC_VER
@@ -542,10 +566,12 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
 #endif
     memset(e, 0, l);
     strncpy(e, ext, l-1);
+SHUT_LOGD("loop headline = %d ext = %s e = %s\n", headline, ext, e);
     Tmp = gl4es_inplace_replace_simple(Tmp, &tmpsize, e, "");
     Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-2), e, Tmp, &tmpsize);
     ++headline;
   }
+*/
   // check if gl_FragDepth is used
   int fragdepth = (strstr(pBuffer, "gl_FragDepth"))?1:0;
   const char* GLESUseFragDepth = "#extension GL_EXT_frag_depth : enable\n";
@@ -558,6 +584,14 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
       Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-1), GLESFakeFragDepth, Tmp, &tmpsize);
     headline++;
   }
+
+if(isVertex)
+  Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-1), "#define VERTEX\n", Tmp, &tmpsize);
+else
+  Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-1), "#define FRAGMENT\n", Tmp, &tmpsize);
+
+  Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline-1), "#define GL4ES\n", Tmp, &tmpsize);
+
   int derivatives = (strstr(pBuffer, "dFdx(") || strstr(pBuffer, "dFdy(") || strstr(pBuffer, "fwidth("))?1:0;
   const char* GLESUseDerivative = "#extension GL_OES_standard_derivatives : enable\n";
   // complete fake value... A better thing should be use....
@@ -925,8 +959,9 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
               if(builtin_matrix[i].matrix == MAT_MV) {
                 if(need->need_mvmatrix && !hardext.highp)
                   ishighp = 0;
-                if(!hardext.highp && !isVertex)
+                if(/*!hardext.highp &&*/ !isVertex)
                   need->need_mvmatrix = 1;
+                  ishighp = 1;  //force highp;
               }
               if(builtin_matrix[i].matrix == MAT_MVP) {
                 if(need->need_mvpmatrix && !hardext.highp)
