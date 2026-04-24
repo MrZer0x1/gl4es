@@ -16,6 +16,11 @@
 #define DBG(a)
 #endif
 
+// Android lazy-init hook. See src/gl/gl4es_android_init.c for the why.
+// Declared locally (not in a header) because this is the only translation
+// unit that needs it.
+extern void gl4es_android_ensure_inited(void);
+
 GLenum APIENTRY_GL4ES gl4es_glGetError(void) {
     DBG(printf("glGetError(), noerror=%d, type_error=%d shim_error=%s\n", globals4es.noerror, glstate->type_error, PrintEnum(glstate->shim_error));)
     if(globals4es.noerror)
@@ -273,6 +278,15 @@ void BuildExtensionsList() {
 }
 
 const GLubyte* APIENTRY_GL4ES gl4es_glGetString(GLenum name) {
+    // ── Android lazy init ────────────────────────────────────────────
+    // With NO_INIT_CONSTRUCTOR the normal auto-init path is disabled.
+    // OSG's graphics thread calls us as its first GL call (from
+    // osg::State::initializeExtensionProcs), and at that moment the EGL
+    // context is guaranteed to be current on this thread — which is
+    // exactly the precondition GetHardwareExtensions needs under NOEGL.
+    // So we initialize here, on demand, before touching `globals4es` or
+    // `glstate`. Idempotent and thread-safe via the flag in the shim.
+    gl4es_android_ensure_inited();
     DBG(printf("glGetString(%s)\n", PrintEnum(name));)
     errorShim(GL_NO_ERROR);
     switch (name) {

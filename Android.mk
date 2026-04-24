@@ -40,6 +40,7 @@ LOCAL_SRC_FILES := \
 	src/gl/framebuffers.c \
 	src/gl/gl_lookup.c \
 	src/gl/getter.c \
+	src/gl/gl4es_android_init.c \
 	src/gl/gl4es.c \
 	src/gl/glstate.c \
 	src/gl/hint.c \
