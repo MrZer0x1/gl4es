@@ -95,16 +95,19 @@ LOCAL_CFLAGS += -DNOX11
 LOCAL_CFLAGS += -DNO_GBM
 LOCAL_CFLAGS += -DUSE_ANDROID_LOG=1
 
-# REQUIRED for OpenMW: gl4es is loaded via dlopen() from JNI glue code.
-# Without this, initialize_gl4es() runs as a constructor inside dlopen(),
-# before getenv() can resolve OPENMW_USER_FILE_STORAGE, and crashes in
-# __strcpy_chk while libGL.so is still being constructed.
-LOCAL_CFLAGS += -DNO_INIT_CONSTRUCTOR
+# Do NOT define NO_INIT_CONSTRUCTOR on this fork.  In the upstream gl4es
+# layout, libGL.so depends on initialize_gl4es() being called on dlopen
+# via __attribute__((constructor)).  Without it, the global glstate stays
+# NULL and the first glGetString() from OSG's GraphicsThread crashes
+# with SIGSEGV at glGetString+28.  The original crash that motivated
+# adding this flag was a NULL-pointer strcpy() inside initialize_gl4es()
+# when OPENMW_USER_FILE_STORAGE was unset; that is now fixed at the
+# source level by a NULL-guard in src/gl/init.c.
 
-# Request a GLES3 context. The shader emitter still targets GLSL ES 1.00
+# Request a GLES3 context.  The shader emitter still targets GLSL ES 1.00
 # (#version 100), but the GLES3 context unlocks GL_EXT_shadow_samplers
 # and float depth textures that OpenMW's shadow cascade uses.
-LOCAL_CFLAGS += -DDEFAULT_ES=2
+LOCAL_CFLAGS += -DDEFAULT_ES=3
 
 # Suppress harmless warnings on this code base.
 LOCAL_CFLAGS += -Wno-typedef-redefinition -Wno-dangling-else
