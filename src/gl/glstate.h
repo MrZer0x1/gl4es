@@ -76,6 +76,10 @@ typedef struct glstate_s {
     GLenum              logicop;
     glsl_t              *glsl;              //shared
     fpe_state_t         *fpe_state;
+    fpe_state_t         *fpe_input_cache;   // Last fpe_state we ran fpe_program() on,
+                                            // used as a fast-path memcmp target so that
+                                            // we can skip fpe_ReleventState() + cache lookup
+                                            // when state has not changed since last draw.
     fpe_fpe_t           *fpe;
     fpestatus_t         fpe_client;
     fpe_cache_t         *fpe_cache;

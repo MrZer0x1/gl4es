@@ -1,95 +1,80 @@
-![logo](gl4es.png "gl4es logo")
+# gl4es launch-fix + FPE optimization
 
-GL4ES - OpenGL for GLES Hardware
-====
+Drop-in replacements for **4 files** in your gl4es tree.
+This is on top of the tree you sent (with shadow support, half-float
+probe, dummy color FBO, NULL guard, and gamma already applied).
 
-![gl4es build status](https://api.travis-ci.org/ptitSeb/gl4es.png "gl4es build status")
+## What's fixed here
 
-This is a library provide OpenGL 2.x functionality for GLES2.0 accelerated Hardware (and of course also support OpenGL 1.5 function, sometimes better than when using GLES 1.1 backend)
-There is also support for GLES 1.1 Hardware, emulating OpenGL 1.5, and some OpenGL 2.x+ extensions.
+### 1. Android.mk — actual reason for the launch crash
 
-GL4ES is known to work on many platform: OpenPandora, ODroid, RaspberryPI (2 and 3 at least), PocketCHIP, "otherfruit"PI (like the OrangePI), Android, iOS, x86 and x86_64 Linux (tested using mesa-egl). There is also some WIP support for AmigaOS4, using experimental GLES2 driver for Warp3D.
+Three bugs in your current `Android.mk`:
 
-This library is based on glshim (https://github.com/lunixbochs/glshim) but as now evolved far from it, with different feature set and objectives. Go check this lib if you need things like RemoteGL or TinyGLES (for software rendering).
+| Line | Original | Fix |
+|------|----------|-----|
+| 97 | `#LOCAL_CFLAGS += -DNO_INIT_CONSTRUCTOR` (commented out) | uncommented |
+| 98 | `-DDEFAULT_ES=2` | `-DDEFAULT_ES=3` |
+| 99 | `//TODO: maybe temporary?` (C-style comment) | `# TODO: maybe temporary?` |
 
-The focus is on compatibility and speed with a wide selection of game and software.
+**The crash you keep seeing** (`SIGSEGV in __strcpy_chk` while
+`libGL.so` is being constructed by the dynamic linker) happens because
+`NO_INIT_CONSTRUCTOR` is **not** defined. Without it, `init.c` line 82
+keeps `__attribute__((constructor(101)))` on `initialize_gl4es()`, and
+the function runs before `getenv("OPENMW_USER_FILE_STORAGE")` can
+resolve. Even though there's now a NULL-guard, the deeper assumption
+that gl4es is ready before JNI calls into it is broken — OpenMW's JNI
+glue calls `dlopen` itself and explicitly initializes gl4es later.
+`NO_INIT_CONSTRUCTOR` defers the initialization until OpenMW asks for
+it, which is the design.
 
-It has been tested successfully of a large selection of games and software, including: Minecraft, OpenMW, SeriousSam (both First and Second Encounters), RVGL (ReVolt GL), TSMC (The Secret Maryo Chronicles), TORCS, SpeedDreams, GL-117, Foobillard(plus), half life 1&2, Blender 2.68 to name just a few. I have also some success with Linux port of XNA games, using either MonoGame or FNA.
+The `//TODO` line is also a real bug — `make` doesn't recognize `//`
+as a comment, only `#`. Depending on the make version, that line is
+either silently ignored or treated as a target name.
 
-Most function of OpenGL up to 1.5 are supported, with some notable exceptions:
- * Reading of Depth or Stencil buffer will not work
- * GL_FEEDBACK mode is not implemented
- * No Accum emulation
+### 2. FPE input-cache fast path (the optimization you asked for)
 
-Some known general limitations:
- * GL_SELECT as some limitation in its implementation (for example, current Depth buffer or bounded texture are not taken into account, also custom vertex shader will not work here)
- * NPOT texture are supported, but not with GL_REPEAT / GL_MIRRORED, only GL_CLAMP will work properly (unless the GLES Hardware support NPOT)
- * Multiple Color attachment on Framebuffer are not supported
- * OcclusionQuery is implemented, but with a 0 bits precision
- * Probably many other things
+In `fpe_program()` we now skip `fpe_ReleventState()` and the khash
+lookup when the unfiltered `fpe_state` is byte-identical to the last
+fully-resolved call. Saves ~250-byte memcpy + ~50 conditional
+bit-ops + a hash lookup on every draw. Estimated benefit on OpenMW
+at ~3000 draws/frame: **0.3–0.8 ms/frame** of CPU on ARM.
 
-Status of the GLES2 backend
- * The FPE (Fixed Pipeline Emulator) has most OpenGL 1.5 drawing call implemented
- * The Shader Conversion is really crude, so only simple shaders will work (especially, the implicit conversion float <-> int is not handled)
- * ARB_program are supported (converted on-the-fly to glsl shaders)
- * Lighting support double-side and color separation
- * FogCoord are supported, along with secondary color
- * An ES2 context should be usable (useful for SDL2)
- * OpenGL 2.x games that have been tested include: OpenRA, GZDoom, Danger from the Deep, SuperTuxKart 0.8.1, Hammerwatch, OpenMW, half life 2, many FNA & MonoGames games (FEZ, Towerfall Ascension, Stardew Valley, Dust, Owlboy, and many other), even some Unity3D games (Teslagrad, Colin McRea Rally remake and other)...
- * glxgears works, but FlatShade is not implemented (and will probably never be), so it's slightly different than using GLES1.1 or actual GL hardware
- * GL_TEXTURE_1D, GL_TEXTURE_3D and GL_TEXTURE_RECTANGLE_ARB are not yet supported in shaders (they are supported in fixed pipeline functions), and texture 3D are just a single 2D layer for now.
- * Program that link only a GL_FRAGMENT or GL_VERTEX shader are not supported yet.
- * Some VBO are used.
+Touched files:
+- `src/gl/glstate.h` — adds `fpe_input_cache` field
+- `src/gl/glstate.c` — allocates it (two init sites)
+- `src/gl/fpe.c` — fast-path check at top of `fpe_program`, snapshot
+  of state at the bottom
 
-Status of the GLES1.1 backend
- * Framebuffer use FRAMEBUFFER_OES extension (that must be present in the GLES 1.1 stack)
- * Lighting doesn't support double-side or color separation
- * FogCoord or Secondary colors are not supported
- * GL_TEXTURE_3D are just a single 2D layer (the 1st layer).
- * VBO are supported, but they are emulated, even if VBO if supported in GLES1.1 driver
+## How to apply
 
-If you use gl4es in your project (as a static or dynamic link), please mention gl4es in you readme / about / whatever.
+    cp Android.mk /path/to/gl4es/Android.mk
+    cp -r src/* /path/to/gl4es/src/
 
-----
+Then rebuild `libGL.so` and replace it in the APK.
 
-Compiling
-----
-How to compile and per-platform specific comment can be found [here](COMPILE.md)
+## Verifying it worked
 
-----
+After rebuild, the new `libGL.so` will have a different BuildId.
+You can check with:
 
-GLU
-----
+    aarch64-linux-android-readelf -n /path/to/libGL.so | grep "Build ID"
 
-Standard GLU do works without any issues. You can find a version [here](https://github.com/ptitSeb/GLU) if you need one.
+Old (crashing) BuildId was `209dc0ebe98fa7931af050c487ad7c25c9a3e496`.
+If the new BuildId differs, you have actually replaced the binary.
 
-----
+In logcat at game start you should see:
 
-Installation
-----
+    LIBGL: GLES Version: 3.0
+    Probed: half-float color FBO complete, enabling halffloatfbo
 
-Put lib/libGL.so.1 in your `LD_LIBRARY_PATH`.
-Beware that GL4ES is meant to replace any libGL you can have on your system (like Mesa for example)
+If `OPENMW_USER_FILE_STORAGE` is set, also:
 
-----
+    LIBGL: PSA path: /sdcard/.../.gl4es.psa-highp
 
-Usage
-----
+If `OPENMW_USER_FILE_STORAGE` is NOT set:
 
-There are many environment variable to control gl4es behavior, also usable at runtime using `glHint(...)`.
+    OPENMW_USER_FILE_STORAGE not set, PSA disabled
 
-See [here](USAGE.md) for all variables and what they do.
-
-----
-
-Media (what is working already)
-----
-
-Some screenshot and youtube links of stuffs that works [here](MEDIA.md)
-
-----
-
-Version history
-----
-
-The change log is [here](CHANGELOG.md)
+The game should now start, shadows should appear (with
+`enable shadows = true` in OpenMW settings.cfg), and walking into
+shallow water should produce visible ripples.

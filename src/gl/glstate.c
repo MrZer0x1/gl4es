@@ -207,6 +207,7 @@ void* NewGLState(void* shared_glstate, int es2only) {
     // fpe
     if(hardext.esversion>1) {
         glstate->fpe_state = (fpe_state_t*)calloc(1, sizeof(fpe_state_t));
+        glstate->fpe_input_cache = (fpe_state_t*)calloc(1, sizeof(fpe_state_t));
         glstate->glsl->es2 = es2only;
         fpe_Init(glstate);
     }
@@ -349,6 +350,7 @@ void* NewGLState(void* shared_glstate, int es2only) {
     // fpe
     if(hardext.esversion>1) {
         glstate->fpe_state = (fpe_state_t*)calloc(1, sizeof(fpe_state_t));
+        glstate->fpe_input_cache = (fpe_state_t*)calloc(1, sizeof(fpe_state_t));
         glstate->glsl->es2 = es2only;
         if(!shared_glstate)
             fpe_Init(glstate);

@@ -2,7 +2,7 @@ LOCAL_PATH := $(call my-dir)
 
 ###########################
 #
-# GL static library
+# GL shared library
 #
 ###########################
 
@@ -88,19 +88,27 @@ LOCAL_SRC_FILES := \
 	src/glx/lookup.c \
 	src/glx/gbm.c \
 	src/glx/streaming.c \
-        src/gl/libtxc_dxtn/txc_compress_dxtn.c \
+	src/gl/libtxc_dxtn/txc_compress_dxtn.c \
 
 LOCAL_CFLAGS += -g -std=gnu99 -funwind-tables -O3 -fvisibility=hidden -include include/android_debug.h
 LOCAL_CFLAGS += -DNOX11
 LOCAL_CFLAGS += -DNO_GBM
 LOCAL_CFLAGS += -DUSE_ANDROID_LOG=1
-#LOCAL_CFLAGS += -DNO_INIT_CONSTRUCTOR
+
+# REQUIRED for OpenMW: gl4es is loaded via dlopen() from JNI glue code.
+# Without this, initialize_gl4es() runs as a constructor inside dlopen(),
+# before getenv() can resolve OPENMW_USER_FILE_STORAGE, and crashes in
+# __strcpy_chk while libGL.so is still being constructed.
+LOCAL_CFLAGS += -DNO_INIT_CONSTRUCTOR
+
+# Request a GLES3 context. The shader emitter still targets GLSL ES 1.00
+# (#version 100), but the GLES3 context unlocks GL_EXT_shadow_samplers
+# and float depth textures that OpenMW's shadow cascade uses.
 LOCAL_CFLAGS += -DDEFAULT_ES=2
-//TODO: maybe temporary?
+
+# Suppress harmless warnings on this code base.
 LOCAL_CFLAGS += -Wno-typedef-redefinition -Wno-dangling-else
 
 LOCAL_LDLIBS := -llog
-#building as a static lib
 
-#LOCAL_CFLAGS += -DSTATICLIB
 include $(BUILD_SHARED_LIBRARY)

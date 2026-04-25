@@ -365,6 +365,21 @@ void APIENTRY_GL4ES fpe_oldprogram(fpe_state_t* state) {
 // ********* Shader stuffs handling *********
 void APIENTRY_GL4ES fpe_program(int ispoint) {
     glstate->fpe_state->point = ispoint;
+    /* Fast path: if the raw fpe_state is byte-identical to the last
+     * fully-resolved call AND the cached fpe already has a compiled
+     * glprogram, fpe_ReleventState is a pure function of the input
+     * and would yield the same filtered state, fpe_GetCache would
+     * return the same fpe_fpe_t, and the program is already linked.
+     * Skip all of that work.  Saves ~250 byte memcpy + ~50 cond
+     * bit-ops + a khash lookup + the old memcmp on every draw call
+     * with stable FPE state. */
+    if(glstate->fpe
+       && glstate->fpe->glprogram
+       && glstate->fpe_input_cache
+       && memcmp(glstate->fpe_state, glstate->fpe_input_cache,
+                 sizeof(fpe_state_t)) == 0) {
+        return;
+    }
     fpe_state_t state;
     fpe_ReleventState(&state, glstate->fpe_state, 1);
     if(glstate->fpe==NULL || memcmp(&glstate->fpe->state, &state, sizeof(fpe_state_t))) {
@@ -434,6 +449,11 @@ void APIENTRY_GL4ES fpe_program(int ispoint) {
         }
         // all done
         DBG(printf("%s FPE shader : %d(%p)\n", from_psa?"Using Precomp":"Creating", glstate->fpe->prog, glstate->fpe->glprogram);)
+    }
+    /* Snapshot the input state so the next call can short-circuit
+     * when nothing has changed. */
+    if(glstate->fpe_input_cache && glstate->fpe && glstate->fpe->glprogram) {
+        memcpy(glstate->fpe_input_cache, glstate->fpe_state, sizeof(fpe_state_t));
     }
 }
 
