@@ -718,9 +718,14 @@ void initialize_gl4es() {
 
 */
 
-            strcpy(cwd, GetEnvVar("OPENMW_USER_FILE_STORAGE"));
+           const char* psa_dir = GetEnvVar("OPENMW_USER_FILE_STORAGE");
+if(psa_dir && *psa_dir) {
+    strcpy(cwd, psa_dir);
+} else {
+    cwd[0] = '\0';
+}
 
-            if(strlen(cwd)) {
+if(strlen(cwd)) {
                 if(globals4es.nohighp)
                     strcat(cwd, ".gl4es.psa-mediump");
                 else
