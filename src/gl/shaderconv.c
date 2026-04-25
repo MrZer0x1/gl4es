@@ -418,6 +418,25 @@ static const char* textureCubeGradAlt =
 "}\n";
 
 
+static const char* shadowSamplerFallback =
+"float _gl4es_shadow2DCompare(sampler2D sampler, vec3 coord) {\n"
+"    float depth = texture2D(sampler, coord.xy).r;\n"
+"    return step(coord.z, depth);\n"
+"}\n"
+"vec4 shadow2D(sampler2D sampler, vec3 coord) {\n"
+"    float lit = _gl4es_shadow2DCompare(sampler, coord);\n"
+"    return vec4(lit, lit, lit, lit);\n"
+"}\n"
+"vec4 shadow2DProj(sampler2D sampler, vec4 coord) {\n"
+"    return shadow2D(sampler, coord.xyz / coord.w);\n"
+"}\n"
+"vec4 shadow2DProj(sampler2D sampler, vec3 coord) {\n"
+"    return shadow2D(sampler, vec3(coord.xy / coord.z, coord.z));\n"
+"}\n";
+
+static const char* useEXTShadowSamplers =
+"#extension GL_EXT_shadow_samplers : enable\n";
+
 static const char* useEXTDrawBuffers =
 "#extension GL_EXT_draw_buffers : enable\n";
 
@@ -611,6 +630,23 @@ else
   if(hardext.maxdrawbuffers>1 && strstr(pBuffer, "gl_FragData[")) {
     Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), useEXTDrawBuffers, Tmp, &tmpsize);
   }
+  // Shadow sampler support.  GLES2 needs GL_EXT_shadow_samplers for
+  // sampler2DShadow/shadow2D.  When it is missing, emulate the compare
+  // in GLSL by downgrading sampler2DShadow to sampler2D and sampling .r.
+  int shadowsampler = (!isVertex && (strstr(Tmp, "sampler2DShadow") || gl4es_find_string(Tmp, "shadow2D") || gl4es_find_string(Tmp, "shadow2DProj")))?1:0;
+  if(shadowsampler) {
+    if(hardext.shadowsampler && hardext.depthtex) {
+      Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), useEXTShadowSamplers, Tmp, &tmpsize);
+      headline++;
+      Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "shadow2DProj", "shadow2DProjEXT");
+      Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "shadow2D", "shadow2DEXT");
+    } else {
+      Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "sampler2DShadow", "sampler2D");
+      Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline), shadowSamplerFallback, Tmp, &tmpsize);
+      headline += gl4es_countline(shadowSamplerFallback);
+    }
+  }
+
   // if some functions are used, add some int/float alternative
   if(!fpeShader && !globals4es.nointovlhack) {
     if(strstr(Tmp, "pow(") || strstr(Tmp, "pow (")) {
@@ -1291,16 +1327,6 @@ else
   if(strstr(Tmp, "mat3x3")) {
     // better to use #define ?
     Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "mat3x3", "mat3");
-  }
-
-  // OpenMW / custom-shader gamma hack: apply gamma after the last fragment write
-  if(globals4es.gamma != 0.0f) {
-    char shaderHack[256];
-    sprintf(shaderHack,
-            "applyShadowDebugOverlay();\n"
-            "    gl_FragData[0].xyz = pow(gl_FragData[0].xyz, vec3(1.0/%f));",
-            globals4es.gamma);
-    Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "applyShadowDebugOverlay();", shaderHack);
   }
   
   // finish

@@ -176,9 +176,11 @@ void initialize_gl4es() {
 #if defined(USE_FBIO) || defined(PYRA)
     env(LIBGL_VSYNC, globals4es.vsync, "vsync enabled");
 #endif
+#ifdef PANDORA
 		if(GetEnvVarFloat("LIBGL_GAMMA",&globals4es.gamma,0.0f)) {
       SHUT_LOGD("Set gamma to %.2f\n", globals4es.gamma);
 		}
+#endif
     env(LIBGL_NOBGRA, globals4es.nobgra, "Ignore BGRA texture capability");
     env(LIBGL_NOTEXRECT, globals4es.notexrect, "Don't export Text Rectangle extension");
     if(globals4es.usefbo) {
@@ -189,6 +191,7 @@ void initialize_gl4es() {
     switch(globals4es.es) {
       case 1:
       case 2:
+      case 3:
         break;
       default:
         // automatic ES backend selection
@@ -223,7 +226,7 @@ void initialize_gl4es() {
         break;
     }
 
-    SHUT_LOGD("Using GLES %s backend\n", (globals4es.es==1)?"1.1":"2.0");
+    SHUT_LOGD("Using GLES %s backend\n", (globals4es.es==1)?"1.1":((globals4es.es==3)?"3.x":"2.0"));
 
     env(LIBGL_NODEPTHTEX, globals4es.nodepthtex, "Disable usage of Depth Textures");
 

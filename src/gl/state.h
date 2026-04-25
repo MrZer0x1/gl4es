@@ -291,6 +291,8 @@ typedef struct {
     GLenum read_type;
     int    n_draw;
     GLenum drawbuff[MAX_DRAW_BUFFERS];    //TODO: define a MAX_DRAWBUFF?
+    GLuint dummycolor;       // RB attached automatically when only depth was provided,
+                             // so that GLES2 drivers don't fail FBO completeness.
 } glframebuffer_t;
 
 typedef struct {

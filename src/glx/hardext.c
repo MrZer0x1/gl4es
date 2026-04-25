@@ -336,6 +336,72 @@ void GetHardwareExtensions(int notest)
         S("GL_OES_texture_half_float ", halffloattexlinear, 1);
         S("GL_EXT_color_buffer_float ", floatfbo, 1);
         S("GL_EXT_color_buffer_half_float ", halffloatfbo, 1);
+        /*
+         * Many Adreno / Mali / PowerVR drivers underreport
+         * GL_EXT_color_buffer_half_float / GL_EXT_color_buffer_float in
+         * glGetString(GL_EXTENSIONS) but still allow a half-float (or
+         * full-float) color attachment to pass FBO completeness.
+         * Probe directly so OpenMW's RGBA32F / RGBA16F ripple FBO can
+         * stay floating-point instead of being silently downgraded to
+         * RGBA8 (which clamps the signed surface-normal components
+         * written by the simulate shader into 0 — making actor
+         * ripples invisible on water).
+         */
+        if(hardext.halffloattex || hardext.floattex) {
+            LOAD_GLES2(glGenFramebuffers);
+            LOAD_GLES2(glBindFramebuffer);
+            LOAD_GLES2(glDeleteFramebuffers);
+            LOAD_GLES2(glFramebufferTexture2D);
+            LOAD_GLES2(glCheckFramebufferStatus);
+            LOAD_GLES2(glGenTextures);
+            LOAD_GLES2(glDeleteTextures);
+            LOAD_GLES2(glBindTexture);
+            LOAD_GLES2(glTexImage2D);
+            LOAD_GLES2(glTexParameteri);
+            if(gles_glGenFramebuffers && gles_glCheckFramebufferStatus) {
+                GLuint fb=0, tex=0;
+                /* Half-float probe (RGBA + GL_HALF_FLOAT_OES). */
+                if(hardext.halffloattex && !hardext.halffloatfbo) {
+                    gles_glGenFramebuffers(1, &fb);
+                    gles_glGenTextures(1, &tex);
+                    gles_glBindTexture(GL_TEXTURE_2D, tex);
+                    gles_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 4, 4, 0, GL_RGBA, GL_HALF_FLOAT_OES, NULL);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    gles_glBindFramebuffer(GL_FRAMEBUFFER, fb);
+                    gles_glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+                    if(gles_glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+                        hardext.halffloatfbo = 1;
+                        SHUT_LOGD("Probed: half-float color FBO complete, enabling halffloatfbo\n");
+                    }
+                    gles_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    gles_glDeleteFramebuffers(1, &fb);
+                    gles_glDeleteTextures(1, &tex);
+                }
+                /* Full-float probe (RGBA + GL_FLOAT). */
+                if(hardext.floattex && !hardext.floatfbo) {
+                    gles_glGenFramebuffers(1, &fb);
+                    gles_glGenTextures(1, &tex);
+                    gles_glBindTexture(GL_TEXTURE_2D, tex);
+                    gles_glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 4, 4, 0, GL_RGBA, GL_FLOAT, NULL);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    gles_glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    gles_glBindFramebuffer(GL_FRAMEBUFFER, fb);
+                    gles_glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+                    if(gles_glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE) {
+                        hardext.floatfbo = 1;
+                        SHUT_LOGD("Probed: full float color FBO complete, enabling floatfbo\n");
+                    }
+                    gles_glBindFramebuffer(GL_FRAMEBUFFER, 0);
+                    gles_glDeleteFramebuffers(1, &fb);
+                    gles_glDeleteTextures(1, &tex);
+                }
+            }
+        }
     }
     S("GL_AOS4_texture_format_RGB332", rgb332, 0);
     S("GL_AOS4_texture_format_RGB332REV", rgb332rev, 0);
@@ -380,6 +446,15 @@ void GetHardwareExtensions(int notest)
         if(!hardext.shader_fbfetch) {
             S("GL_EXT_shader_framebuffer_fetch ", shader_fbfetch, 1);
         }
+        /*
+         * Hardware shadow samplers are only usable by gl4es current shader
+         * converter when the GLES driver exposes GL_EXT_shadow_samplers.
+         * ES3 has texture compare in core, but this converter still emits
+         * GLSL ES 1.00 by default, so a pure ES3 core path is handled by
+         * the shader fallback in shaderconv.c instead of sampler2DShadow.
+         */
+        if(hardext.depthtex)
+            S("GL_EXT_shadow_samplers ", shadowsampler, 1);
         S("GL_OES_get_program ", prgbinary, 1);
         if(!hardext.prgbinary) {
             S("GL_OES_get_program_binary ", prgbinary, 1);

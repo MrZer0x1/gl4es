@@ -153,6 +153,15 @@ void APIENTRY_GL4ES gl4es_glDeleteFramebuffers(GLsizei n, GLuint *framebuffers) 
                                 tex->renderstencil = 0;
                             }
                         }
+                        // Free the dummy color renderbuffer that was
+                        // possibly attached automatically when the FBO
+                        // was depth-only (see gl4es_glCheckFramebufferStatus).
+                        if(fb->dummycolor) {
+                            LOAD_GLES2_OR_OES(glDeleteRenderbuffers);
+                            if(gles_glDeleteRenderbuffers)
+                                gles_glDeleteRenderbuffers(1, &fb->dummycolor);
+                            fb->dummycolor = 0;
+                        }
                         if (glstate->fbo.current_fb == fb) {
                             glstate->fbo.current_fb = 0;
                         }
@@ -199,6 +208,57 @@ GLboolean APIENTRY_GL4ES gl4es_glIsFramebuffer(GLuint framebuffer) {
 
 GLenum APIENTRY_GL4ES gl4es_glCheckFramebufferStatus(GLenum target) {
     GLenum result;
+    /*
+     * OpenMW shadow casting binds an FBO with only a depth attachment
+     * (no color).  On core GLES2 most drivers return
+     * GL_FRAMEBUFFER_INCOMPLETE_MISSING_ATTACHMENT in that case, so
+     * the entire shadow-map render is silently dropped and shadows
+     * never appear on screen.
+     *
+     * Detect the exact pattern (color slots all empty, depth bound,
+     * not the default FBO) and quietly attach a small RGB565
+     * renderbuffer to COLOR_ATTACHMENT0 so the FBO becomes complete.
+     * OSG never reads the color buffer of a depth-only FBO, so this
+     * does not change the rendered output.  The dummy renderbuffer is
+     * freed in gl4es_glDeleteFramebuffers.
+     */
+    if(target != GL_READ_FRAMEBUFFER
+       && glstate->fbo.current_fb
+       && glstate->fbo.current_fb->id) {
+        glframebuffer_t *fb = glstate->fbo.current_fb;
+        int has_color = 0;
+        for(int i=0; i<MAX_DRAW_BUFFERS; ++i) {
+            if(fb->color[i]) { has_color = 1; break; }
+        }
+        int has_depth = (fb->depth || fb->stencil);
+        if(!has_color && has_depth && !fb->dummycolor) {
+            int w = fb->width;
+            int h = fb->height;
+            if(w<=0) w = 1;
+            if(h<=0) h = 1;
+            LOAD_GLES2_OR_OES(glGenRenderbuffers);
+            LOAD_GLES2_OR_OES(glBindRenderbuffer);
+            LOAD_GLES2_OR_OES(glRenderbufferStorage);
+            LOAD_GLES2_OR_OES(glFramebufferRenderbuffer);
+            if(gles_glGenRenderbuffers
+               && gles_glBindRenderbuffer
+               && gles_glRenderbufferStorage
+               && gles_glFramebufferRenderbuffer) {
+                GLuint cur_rb = (glstate->fbo.current_rb)
+                                ? glstate->fbo.current_rb->renderbuffer
+                                : 0;
+                gles_glGenRenderbuffers(1, &fb->dummycolor);
+                gles_glBindRenderbuffer(GL_RENDERBUFFER, fb->dummycolor);
+                /* RGB565 is the smallest mandatory color renderbuffer
+                 * format on GLES2; we never read it, so this is cheap. */
+                gles_glRenderbufferStorage(GL_RENDERBUFFER, GL_RGB565, w, h);
+                gles_glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, fb->dummycolor);
+                if(cur_rb != fb->dummycolor)
+                    gles_glBindRenderbuffer(GL_RENDERBUFFER, cur_rb);
+                DBG(printf("gl4es: attached %dx%d dummy color RB %u to depth-only FBO %u\n", w, h, fb->dummycolor, fb->id);)
+            }
+        }
+    }
     if(glstate->fbo.internal) {
         result = glstate->fbo.fb_status;
         noerrorShim();

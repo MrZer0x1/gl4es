@@ -304,7 +304,13 @@ void APIENTRY_GL4ES gl4es_glTexParameterfv(GLenum target, GLenum pname, const GL
     const GLint itarget = what_target(target);
     const GLuint rtarget = map_tex_target(target);
     gltexture_t *texture = glstate->texture.bound[glstate->texture.active][itarget];
-    if(!samplerParameterfv(&texture->sampler, pname, params)) {
+    if(samplerParameterfv(&texture->sampler, pname, params)) {
+        if(glstate->bound_changed < glstate->texture.active+1)
+            glstate->bound_changed = glstate->texture.active+1;
+        if (glstate->fpe_state && glstate->fpe_bound_changed < glstate->texture.active+1)
+            glstate->fpe_bound_changed = glstate->texture.active+1;
+        return;
+    }
         LOAD_GLES(glTexParameterfv);
         GLint param = params[0];
         switch (pname) {
@@ -351,7 +357,6 @@ void APIENTRY_GL4ES gl4es_glTexParameterfv(GLenum target, GLenum pname, const GL
         realize_bound(glstate->texture.active, target);
         gles_glTexParameterfv(rtarget, pname, params);
         errorGL();
-    }
 }
 
 void APIENTRY_GL4ES gl4es_glTexParameterf(GLenum target, GLenum pname, GLfloat param) {
@@ -770,6 +775,44 @@ void realize_active() {
     gles_glActiveTexture(GL_TEXTURE0 + glstate->gleshard->active);
 }
 
+static int is_shadow_depth_texture(gltexture_t* tex)
+{
+    if(!tex) return 0;
+    switch(tex->format) {
+        case GL_DEPTH_COMPONENT:
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        case GL_DEPTH_COMPONENT32:
+        case GL_DEPTH_STENCIL:
+            return 1;
+    }
+    switch(tex->internalformat) {
+        case GL_DEPTH_COMPONENT:
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        case GL_DEPTH_COMPONENT32:
+        case GL_DEPTH_STENCIL:
+            return 1;
+    }
+    switch(tex->wanted_internal) {
+        case GL_DEPTH_COMPONENT:
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        case GL_DEPTH_COMPONENT32:
+        case GL_DEPTH_STENCIL:
+            return 1;
+    }
+    switch(tex->orig_internal) {
+        case GL_DEPTH_COMPONENT:
+        case GL_DEPTH_COMPONENT16:
+        case GL_DEPTH_COMPONENT24:
+        case GL_DEPTH_COMPONENT32:
+        case GL_DEPTH_STENCIL:
+            return 1;
+    }
+    return 0;
+}
+
 void realize_1texture(GLenum target, int wantedTMU, gltexture_t* tex, glsampler_t* sampler)
 {
     DBG(printf("realize_1texture(%s, %d, %p[%u], %p)\n", PrintEnum(target), wantedTMU, tex, tex->glname, sampler);)
@@ -848,6 +891,42 @@ void realize_1texture(GLenum target, int wantedTMU, gltexture_t* tex, glsampler_
         }
         gles_glTexParameteri(target, GL_TEXTURE_WRAP_T, param);
         tex->actual.wrap_t=param;
+    }
+    int compare_supported = (hardext.shadowsampler || hardext.esversion>2);
+    int use_shadow_compare = (hardext.shadowsampler && target==GL_TEXTURE_2D && is_shadow_depth_texture(tex) && sampler->compare!=GL_NONE);
+    param = use_shadow_compare ? sampler->compare : GL_NONE;
+    if(compare_supported && tex->actual.compare!=param) {
+        if(wantedTMU==-1) {
+            realize_textures(0);
+            gltexture_t *bound = glstate->texture.bound[TMU][ENABLED_TEX2D];
+            oldtex = bound->glname;
+            if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, tex->glname);
+            wantedTMU=-2;
+        }
+        DBG(printf("Adjusting %s[%d]:Texture[%u].compare = %s\n", PrintEnum(target), TMU, tex->glname, PrintEnum(param));)
+        if(glstate->gleshard->active!=TMU) {
+            glstate->gleshard->active = TMU;
+            gles_glActiveTexture(GL_TEXTURE0+TMU);
+        }
+        gles_glTexParameteri(target, GL_TEXTURE_COMPARE_MODE, param);
+        tex->actual.compare=param;
+    }
+    param = sampler->func;
+    if(use_shadow_compare && tex->actual.func!=param) {
+        if(wantedTMU==-1) {
+            realize_textures(0);
+            gltexture_t *bound = glstate->texture.bound[TMU][ENABLED_TEX2D];
+            oldtex = bound->glname;
+            if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, tex->glname);
+            wantedTMU=-2;
+        }
+        DBG(printf("Adjusting %s[%d]:Texture[%u].compare_func = %s\n", PrintEnum(target), TMU, tex->glname, PrintEnum(param));)
+        if(glstate->gleshard->active!=TMU) {
+            glstate->gleshard->active = TMU;
+            gles_glActiveTexture(GL_TEXTURE0+TMU);
+        }
+        gles_glTexParameteri(target, GL_TEXTURE_COMPARE_FUNC, param);
+        tex->actual.func=param;
     }
     if(wantedTMU==-2) {
         if (oldtex!=tex->glname) gles_glBindTexture(GL_TEXTURE_2D, oldtex);
