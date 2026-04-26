@@ -1,6 +1,8 @@
 #include "shaderconv.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "../glx/hardext.h"
 #include "debug.h"
 #include "fpe_shader.h"
@@ -456,6 +458,70 @@ static const char* gl4es_Samplers2D_uniform = "uniform sampler2D _gl4es_Sampler2
 static const char* gl4es_Samplers3D_uniform = "uniform sampler2D _gl4es_Sampler3D_";
 static const char* gl4es_SamplersCube_uniform = "uniform samplerCube _gl4es_SamplerCube_";
 
+
+/* OpenMW Android / GLES2 compatibility:
+ * Desktop OpenGL shaders may contain extension lines or uniform initializers
+ * that Adreno's GLES compiler rejects after gl4es conversion.
+ */
+static int gl4es_is_blocked_desktop_extension(const char* name) {
+  return name && (!strcmp(name, "GL_ARB_uniform_buffer_object") || !strcmp(name, "GL_EXT_gpu_shader4"));
+}
+
+static char* gl4es_remove_line_containing(char* src, int* size, const char* needle) {
+  char* pos;
+  if(!src || !needle)
+    return src;
+  while((pos = strstr(src, needle))) {
+    char* start = pos;
+    char* end = pos;
+    while(start > src && *(start - 1) != '\n')
+      --start;
+    while(*end && *end != '\n')
+      ++end;
+    if(*end == '\n')
+      ++end;
+    if(size)
+      *size -= (int)(end - start);
+    memmove(start, end, strlen(end) + 1);
+  }
+  return src;
+}
+
+static char* gl4es_strip_desktop_extensions_for_gles(char* src, int* size) {
+  src = gl4es_remove_line_containing(src, size, "GL_ARB_uniform_buffer_object");
+  src = gl4es_remove_line_containing(src, size, "GL_EXT_gpu_shader4");
+  return src;
+}
+
+static char* gl4es_strip_uniform_initializers_for_gles(char* src, int* size) {
+  char* scan;
+  if(!src)
+    return src;
+  scan = src;
+  while((scan = strstr(scan, "uniform"))) {
+    char* semi = strchr(scan, ';');
+    char* newline = strchr(scan, '\n');
+    char* eq;
+    if(!semi || (newline && newline < semi)) {
+      scan += 7;
+      continue;
+    }
+    eq = strchr(scan, '=');
+    if(eq && eq < semi) {
+      char* cut = eq;
+      while(cut > scan && (*(cut - 1) == ' ' || *(cut - 1) == '\t'))
+        --cut;
+      if(size)
+        *size -= (int)(semi - cut);
+      memmove(cut, semi, strlen(semi) + 1);
+      scan = cut + 1;
+    } else {
+      scan += 7;
+    }
+  }
+  return src;
+}
+
 static const char* gl_VertexAttrib = "gl_VertexAttrib_";
 static const char* gl4es_VertexAttrib = "_gl4es_VertexAttrib_";
 
@@ -514,6 +580,9 @@ char* ConvertShader(const char* pEntry, int isVertex, shaderconv_need_t *need)
         if (exts.ext[i].state == 1) state = "warn";
         if (exts.ext[i].state == 2) state = "enable";
         if (exts.ext[i].state == 3) state = "require";
+
+        if(gl4es_is_blocked_desktop_extension(exts.ext[i].name))
+            continue;
 
         sprintf(line, "#extension %.50s : %s\n", exts.ext[i].name, state);
         strcat(extensionsList, line);
@@ -1329,6 +1398,12 @@ else
     Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "mat3x3", "mat3");
   }
   
+  // OpenMW Android / GLES2 cleanup.  Do it late so it also catches
+  // extensions re-inserted by preprocessing and uniform initializers left
+  // by desktop GLSL sources.
+  Tmp = gl4es_strip_desktop_extensions_for_gles(Tmp, &tmpsize);
+  Tmp = gl4es_strip_uniform_initializers_for_gles(Tmp, &tmpsize);
+
   // finish
   if((globals4es.dbgshaderconv&maskafter)==maskafter) {
     printf("New Shader source:\n%s\n", Tmp);
