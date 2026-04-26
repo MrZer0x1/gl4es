@@ -61,6 +61,7 @@ typedef struct _globals4es {
  int blitfullscreen;    // a "fullscreen" blit to FB0 means SwapBuffers
  int notexarray;
  int nodepthtex;
+ int noshadowsamplers;  // LIBGL_NOSHADOWSAMPLERS=1: ignore GL_EXT_shadow_samplers and route shadow2D() through the GLSL fallback (workaround for OpenMW-style `shadow2D(...).r` patterns on drivers where shadow2DEXT is broken)
  int logshader;
  int shadernogles;
  int floattex;

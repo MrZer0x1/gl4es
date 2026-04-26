@@ -229,6 +229,7 @@ void initialize_gl4es() {
     SHUT_LOGD("Using GLES %s backend\n", (globals4es.es==1)?"1.1":((globals4es.es==3)?"3.x":"2.0"));
 
     env(LIBGL_NODEPTHTEX, globals4es.nodepthtex, "Disable usage of Depth Textures");
+    env(LIBGL_NOSHADOWSAMPLERS, globals4es.noshadowsamplers, "Force GLSL shadow-sampler fallback (route shadow2D through emulated path; required on Adreno GLES3 where shadow2DEXT().r is undefined)");
 
     const char* env_drmcard = GetEnvVar("LIBGL_DRMCARD");
     if(env_drmcard) {

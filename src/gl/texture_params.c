@@ -893,7 +893,13 @@ void realize_1texture(GLenum target, int wantedTMU, gltexture_t* tex, glsampler_
         tex->actual.wrap_t=param;
     }
     int compare_supported = (hardext.shadowsampler || hardext.esversion>2);
-    int use_shadow_compare = (hardext.shadowsampler && target==GL_TEXTURE_2D && is_shadow_depth_texture(tex) && sampler->compare!=GL_NONE);
+    // When LIBGL_NOSHADOWSAMPLERS forces the GLSL fallback in shaderconv.c,
+    // shaders sample the depth texture as `texture2D(sampler2D, ...).r` —
+    // which the GL spec says is *undefined* if TEXTURE_COMPARE_MODE is set
+    // to COMPARE_REF_TO_TEXTURE. So we have to clear compare mode on the
+    // driver side too, otherwise the fallback returns 0/1 garbage instead
+    // of raw depth and shadows render solid black or fully unshadowed.
+    int use_shadow_compare = (hardext.shadowsampler && !globals4es.noshadowsamplers && target==GL_TEXTURE_2D && is_shadow_depth_texture(tex) && sampler->compare!=GL_NONE);
     param = use_shadow_compare ? sampler->compare : GL_NONE;
     if(compare_supported && tex->actual.compare!=param) {
         if(wantedTMU==-1) {

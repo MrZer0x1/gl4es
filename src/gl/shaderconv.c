@@ -420,6 +420,17 @@ static const char* textureCubeGradAlt =
 "}\n";
 
 
+/*
+ * Shadow sampler fallback path (no GL_EXT_shadow_samplers).
+ *
+ * Used when the driver doesn't expose GL_EXT_shadow_samplers, OR when
+ * we deliberately route OpenMW through the fallback to avoid the
+ * `.r` swizzle problem on shadow2DEXT (which returns float, not vec4).
+ *
+ * NOTE: depending on TEXTURE_COMPARE_MODE state of the bound depth
+ * texture, raw texture2D() of a sampler in compare-ref mode is
+ * undefined. texture_params.c clears compare mode for non-EXT paths.
+ */
 static const char* shadowSamplerFallback =
 "float _gl4es_shadow2DCompare(sampler2D sampler, vec3 coord) {\n"
 "    float depth = texture2D(sampler, coord.xy).r;\n"
@@ -434,6 +445,38 @@ static const char* shadowSamplerFallback =
 "}\n"
 "vec4 shadow2DProj(sampler2D sampler, vec3 coord) {\n"
 "    return shadow2D(sampler, vec3(coord.xy / coord.z, coord.z));\n"
+"}\n";
+
+/*
+ * Shadow sampler EXT path wrappers.
+ *
+ * GL_EXT_shadow_samplers exposes shadow2DEXT / shadow2DProjEXT which
+ * return *float* (the comparison result) — NOT vec4 like desktop GL's
+ * shadow2D. OpenMW shaders are written for desktop semantics:
+ *
+ *     shadow += shadow2D(shadowMap, offsetCoords.xyz).r;
+ *
+ * After a naive textual `shadow2D` -> `shadow2DEXT` replace, the `.r`
+ * swizzle is applied to a float, which is non-conformant GLSL ES 1.00
+ * (some drivers tolerate it as a no-op, most return undefined / fail).
+ * On Adreno we observe shaders that compile but produce 1.0 for every
+ * sample => unshadowedLightRatio() always returns 1.0 => no shadows.
+ *
+ * Solution: keep the OpenMW shader source untouched. Instead, define
+ * vec4-returning wrapper functions named `shadow2D` and `shadow2DProj`
+ * that internally call shadow2DEXT / shadow2DProjEXT. The .r/.g/.b/.a
+ * swizzles in OpenMW's PCF kernel then read identical components of a
+ * vec4 broadcast, which is well-defined and produces correct shadows.
+ */
+static const char* shadowSamplerEXTWrap =
+"vec4 shadow2D(sampler2DShadow s, vec3 c) {\n"
+"    return vec4(shadow2DEXT(s, c));\n"
+"}\n"
+"vec4 shadow2DProj(sampler2DShadow s, vec4 c) {\n"
+"    return vec4(shadow2DProjEXT(s, c));\n"
+"}\n"
+"vec4 shadow2DProj(sampler2DShadow s, vec3 c) {\n"
+"    return vec4(shadow2DProjEXT(s, vec4(c, 1.0)));\n"
 "}\n";
 
 static const char* useEXTShadowSamplers =
@@ -702,13 +745,23 @@ else
   // Shadow sampler support.  GLES2 needs GL_EXT_shadow_samplers for
   // sampler2DShadow/shadow2D.  When it is missing, emulate the compare
   // in GLSL by downgrading sampler2DShadow to sampler2D and sampling .r.
+  //
+  // EXT path note: shadow2DEXT returns float (not vec4 like desktop GL).
+  // OpenMW shaders do `shadow2D(...).r` — applying .r to a float is
+  // non-conformant and silently broken on Adreno. So instead of textual
+  // shadow2D -> shadow2DEXT replace, we inject vec4-returning wrapper
+  // functions named shadow2D / shadow2DProj that internally call the
+  // EXT versions. OpenMW's source compiles unmodified.
+  //
+  // Escape hatch: LIBGL_NOSHADOWSAMPLERS=1 forces the GLSL fallback path.
   int shadowsampler = (!isVertex && (strstr(Tmp, "sampler2DShadow") || gl4es_find_string(Tmp, "shadow2D") || gl4es_find_string(Tmp, "shadow2DProj")))?1:0;
   if(shadowsampler) {
-    if(hardext.shadowsampler && hardext.depthtex) {
+    int force_fallback = globals4es.noshadowsamplers;
+    if(hardext.shadowsampler && hardext.depthtex && !force_fallback) {
       Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, 1), useEXTShadowSamplers, Tmp, &tmpsize);
       headline++;
-      Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "shadow2DProj", "shadow2DProjEXT");
-      Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "shadow2D", "shadow2DEXT");
+      Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline), shadowSamplerEXTWrap, Tmp, &tmpsize);
+      headline += gl4es_countline(shadowSamplerEXTWrap);
     } else {
       Tmp = gl4es_inplace_replace(Tmp, &tmpsize, "sampler2DShadow", "sampler2D");
       Tmp = gl4es_inplace_insert(gl4es_getline(Tmp, headline), shadowSamplerFallback, Tmp, &tmpsize);
