@@ -1631,19 +1631,24 @@ void gl4es_setCurrentFBO() {
 // DrawBuffers functions are faked unless GL_EXT_draw_buffers is supported
 void APIENTRY_GL4ES gl4es_glDrawBuffers(GLsizei n, const GLenum *bufs) {
     DBG(printf("glDrawBuffers(%d, %p) [0]=%s\n", n, bufs, n?PrintEnum(bufs[0]):"nil");)
+    if(n<0 || n>hardext.maxdrawbuffers) {
+        errorShim(GL_INVALID_VALUE);
+        return;
+    }
     if(hardext.drawbuffers) {
         LOAD_GLES_EXT(glDrawBuffers);
-        gles_glDrawBuffers(n, bufs);
-        errorGL();
-    } else {
-        if(n<0 || n>hardext.maxdrawbuffers) {
-            errorShim(GL_INVALID_VALUE);
-            return;
+        if(gles_glDrawBuffers) {
+            gles_glDrawBuffers(n, bufs);
+            errorGL();
+        } else {
+            hardext.drawbuffers = 0;
+            noerrorShim();
         }
+    } else {
+        noerrorShim();
     }
     glstate->fbo.fbo_draw->n_draw = n;
     memcpy(glstate->fbo.fbo_draw->drawbuff, bufs, n*sizeof(GLenum));
-    noerrorShim();
 }
 void APIENTRY_GL4ES gl4es_glNamedFramebufferDrawBuffers(GLuint framebuffer, GLsizei n, const GLenum *bufs) {
     if(n<0 || n>hardext.maxdrawbuffers) {
@@ -1651,12 +1656,21 @@ void APIENTRY_GL4ES gl4es_glNamedFramebufferDrawBuffers(GLuint framebuffer, GLsi
         return;
     }
     glframebuffer_t* fb = find_framebuffer(framebuffer);
+    if(!fb) {
+        errorShim(GL_INVALID_OPERATION);
+        return;
+    }
     if(hardext.drawbuffers) {
         GLuint oldf = glstate->fbo.fbo_draw->id;
         gl4es_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, fb->id);
         LOAD_GLES_EXT(glDrawBuffers);
-        gles_glDrawBuffers(n, bufs);
-        errorGL();
+        if(gles_glDrawBuffers) {
+            gles_glDrawBuffers(n, bufs);
+            errorGL();
+        } else {
+            hardext.drawbuffers = 0;
+            noerrorShim();
+        }
         gl4es_glBindFramebuffer(GL_DRAW_FRAMEBUFFER, oldf);
     }
     fb->n_draw = n;
@@ -1670,9 +1684,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferiv(GLenum buffer, GLint drawbuffer, const
     GLenum attch;
     switch(buffer) {
         case GL_COLOR:
-            if(drawbuffer>glstate->fbo.fbo_draw->n_draw)
+            if(drawbuffer<0 || drawbuffer>=glstate->fbo.fbo_draw->n_draw)
                 return; // GL_NONE...
-            attch = glstate->fbo.fbo_draw->drawbuff[buffer];
+            attch = glstate->fbo.fbo_draw->drawbuff[drawbuffer];
             if(!(attch>=GL_COLOR_ATTACHMENT0 && attch<GL_COLOR_ATTACHMENT0+hardext.maxdrawbuffers)) {
                 errorShim(GL_INVALID_VALUE);
                 return;
@@ -1715,9 +1729,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferuiv(GLenum buffer, GLint drawbuffer, cons
     GLenum attch;
     switch(buffer) {
         case GL_COLOR:
-            if(drawbuffer>glstate->fbo.fbo_draw->n_draw)
+            if(drawbuffer<0 || drawbuffer>=glstate->fbo.fbo_draw->n_draw)
                 return; // GL_NONE...
-            attch = glstate->fbo.fbo_draw->drawbuff[buffer];
+            attch = glstate->fbo.fbo_draw->drawbuff[drawbuffer];
             if(!(attch>=GL_COLOR_ATTACHMENT0 && attch<GL_COLOR_ATTACHMENT0+hardext.maxdrawbuffers)) {
                 errorShim(GL_INVALID_VALUE);
                 return;
@@ -1748,9 +1762,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferfv(GLenum buffer, GLint drawbuffer, const
     GLenum attch;
     switch(buffer) {
         case GL_COLOR:
-            if(drawbuffer>glstate->fbo.fbo_draw->n_draw)
+            if(drawbuffer<0 || drawbuffer>=glstate->fbo.fbo_draw->n_draw)
                 return; // GL_NONE...
-            attch = glstate->fbo.fbo_draw->drawbuff[buffer];
+            attch = glstate->fbo.fbo_draw->drawbuff[drawbuffer];
             if(!(attch>=GL_COLOR_ATTACHMENT0 && attch<GL_COLOR_ATTACHMENT0+hardext.maxdrawbuffers)) {
                 errorShim(GL_INVALID_VALUE);
                 return;

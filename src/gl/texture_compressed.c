@@ -632,13 +632,22 @@ void APIENTRY_GL4ES gl4es_glCompressedTexSubImage3D(GLenum target, GLint level, 
 }
 
 void APIENTRY_GL4ES gl4es_glClipControlEXT(GLenum origin, GLenum depthMode) {
-    LOAD_GLES(glClipControlEXT);
-    gles_glClipControlEXT(origin, depthMode);
+    if(!hardext.clipcontrol) {
+        /* No-op on GLES2/OpenMW Android: reverse-Z is disabled in settings. */
+        noerrorShim();
+        return;
+    }
+    LOAD_GLES_EXT(glClipControlEXT);
+    if(gles_glClipControlEXT) {
+        gles_glClipControlEXT(origin, depthMode);
+        errorGL();
+    } else {
+        noerrorShim();
+    }
 }
 
 void APIENTRY_GL4ES gl4es_glClipControl(GLenum origin, GLenum depthMode) {
-    LOAD_GLES(glClipControlEXT);
-    gles_glClipControlEXT(origin, depthMode);
+    gl4es_glClipControlEXT(origin, depthMode);
 }
 
 //Direct wrapper

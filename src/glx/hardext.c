@@ -266,7 +266,18 @@ void GetHardwareExtensions(int notest)
         SHUT_LOGD("Extension GL_EXT_draw_buffers is in core ES3, and so used\n");
         hardext.drawbuffers = 1;
     } else {
-        S("GL_EXT_draw_buffers ", drawbuffers, 1);
+        /* OpenMW Android usually runs through a GLES2 context.
+         * Some Adreno drivers expose GL_EXT_draw_buffers in the string but
+         * eglGetProcAddress returns a placeholder that only prints
+         * "called unimplemented OpenGL ES API" when glDrawBuffersEXT is
+         * called. OpenMW shadow maps and water ripple passes use one color
+         * attachment at a time, so the safe GLES2 path is to emulate
+         * glDrawBuffers in gl4es state and avoid calling the native entry.
+         */
+        if(strstr(Exts, "GL_EXT_draw_buffers "))
+            SHUT_LOGD("Extension GL_EXT_draw_buffers detected but disabled for GLES2/OpenMW compatibility\n");
+        hardext.drawbuffers = 0;
+        hardext.maxdrawbuffers = 1;
     }
     /*if(hardext.blendcolor==0) {
         // try by just loading the function
@@ -319,7 +330,14 @@ void GetHardwareExtensions(int notest)
     }
     S("GL_OES_draw_texture ", drawtex, 1);
     S("GL_EXT_texture_rg ", rgtex, 1);
-    S("GL_EXT_clip_control ", clipcontrol, 1);
+    /* Reverse-Z / glClipControl is not reliable through GLES2 gl4es on Android.
+     * If advertised, OpenMW/OSG will call glClipControlEXT and Adreno may log
+     * "called unimplemented OpenGL ES API" every frame. Disable advertising;
+     * the Android launcher also writes [Camera] reverse z = false.
+     */
+    if(strstr(Exts, "GL_EXT_clip_control "))
+        SHUT_LOGD("Extension GL_EXT_clip_control detected but disabled for GLES2/OpenMW compatibility\n");
+    hardext.clipcontrol = 0;
     S("GL_EXT_multisampled_render_to_texture ", framebufferTextureMultisample, 1);
     S("GL_EXT_texture_compression_s3tc ", dxtCompression, 1);
     S("GL_EXT_texture_compression_dxt1 ", dxt1, 1);
