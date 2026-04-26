@@ -1693,9 +1693,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferiv(GLenum buffer, GLint drawbuffer, const
             } else {
                 GLfloat oldclear[4];
                 LOAD_GLES_EXT(glDrawBuffers);
-                // select the buffer...
+                // select the real GL_COLOR_ATTACHMENTi target, not the integer drawbuffer index.
                 if(hardext.drawbuffers)
-                    gles_glDrawBuffers(1, (const GLenum *) &drawbuffer);
+                    gles_glDrawBuffers(1, (const GLenum *) &attch);
                 gl4es_glGetFloatv(GL_COLOR_CLEAR_VALUE, oldclear);
                 // how to convert the value? Most FB will be 8bits / component for now...
                 gl4es_glClearColor(value[0]/127.0f, value[1]/127.0f, value[2]/127.0f, value[3]/127.0f);
@@ -1738,9 +1738,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferuiv(GLenum buffer, GLint drawbuffer, cons
             } else {
                 GLfloat oldclear[4];
                 LOAD_GLES_EXT(glDrawBuffers);
-                // select the buffer...
+                // select the real GL_COLOR_ATTACHMENTi target, not the integer drawbuffer index.
                 if(hardext.drawbuffers)
-                    gles_glDrawBuffers(1, (const GLenum *) &drawbuffer);
+                    gles_glDrawBuffers(1, (const GLenum *) &attch);
                 gl4es_glGetFloatv(GL_COLOR_CLEAR_VALUE, oldclear);
                 // how to convert the value? Most FB will be 8bits / component for now...
                 gl4es_glClearColor(value[0]/255.0f, value[1]/255.0f, value[2]/255.0f, value[3]/255.0f);
@@ -1771,9 +1771,9 @@ void APIENTRY_GL4ES gl4es_glClearBufferfv(GLenum buffer, GLint drawbuffer, const
             } else {
                 GLfloat oldclear[4];
                 LOAD_GLES_EXT(glDrawBuffers);
-                // select the buffer...
+                // select the real GL_COLOR_ATTACHMENTi target, not the integer drawbuffer index.
                 if(hardext.drawbuffers)
-                    gles_glDrawBuffers(1, (const GLenum *) &drawbuffer);
+                    gles_glDrawBuffers(1, (const GLenum *) &attch);
                 gl4es_glGetFloatv(GL_COLOR_CLEAR_VALUE, oldclear);
                 // how to convert the value? Most FB will be 8bits / component for now...
                 gl4es_glClearColor(value[0], value[1], value[2], value[3]);

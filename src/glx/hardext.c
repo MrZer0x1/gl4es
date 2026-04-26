@@ -266,18 +266,12 @@ void GetHardwareExtensions(int notest)
         SHUT_LOGD("Extension GL_EXT_draw_buffers is in core ES3, and so used\n");
         hardext.drawbuffers = 1;
     } else {
-        /* OpenMW Android usually runs through a GLES2 context.
-         * Some Adreno drivers expose GL_EXT_draw_buffers in the string but
-         * eglGetProcAddress returns a placeholder that only prints
-         * "called unimplemented OpenGL ES API" when glDrawBuffersEXT is
-         * called. OpenMW shadow maps and water ripple passes use one color
-         * attachment at a time, so the safe GLES2 path is to emulate
-         * glDrawBuffers in gl4es state and avoid calling the native entry.
+        /* Refraction/ripple RTTs in OpenMW need real draw-buffer routing.
+         * Do NOT force this off: faking glDrawBuffers keeps gl4es state in sync
+         * but leaves the GLES driver drawing to the wrong color attachment,
+         * which shows up underwater as a solid green refraction texture.
          */
-        if(strstr(Exts, "GL_EXT_draw_buffers "))
-            SHUT_LOGD("Extension GL_EXT_draw_buffers detected but disabled for GLES2/OpenMW compatibility\n");
-        hardext.drawbuffers = 0;
-        hardext.maxdrawbuffers = 1;
+        S("GL_EXT_draw_buffers ", drawbuffers, 1);
     }
     /*if(hardext.blendcolor==0) {
         // try by just loading the function
